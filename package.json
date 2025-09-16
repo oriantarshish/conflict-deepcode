@@ -1,0 +1,58 @@
+{
+  "name": "conflict-deepcode",
+  "version": "1.1.0",
+  "description": "Free AI coding assistant powered by DeepSeek V2 Coder through Ollama",
+  "keywords": [
+    "ai",
+    "coding",
+    "assistant",
+    "deepseek",
+    "ollama",
+    "code-generation",
+    "programming",
+    "developer-tools"
+  ],
+  "homepage": "https://github.com/conflict/conflict-deepcode#readme",
+  "bugs": {
+    "url": "https://github.com/conflict/conflict-deepcode/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conflict/conflict-deepcode.git"
+  },
+  "license": "MIT",
+  "author": "Conflict Team",
+  "type": "commonjs",
+  "main": "index.js",
+  "bin": {
+    "conflict-deepcode": "bin/conflict-deepcode.js",
+    "deepcode": "bin/conflict-deepcode.js",
+    "dpcd": "bin/dpcd.js"
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "install": "node scripts/install.js",
+    "postinstall": "node scripts/postinstall.js",
+    "setup-ollama": "node scripts/auto-install-ollama.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "os": [
+    "win32",
+    "darwin",
+    "linux"
+  ],
+  "preferGlobal": true
+}

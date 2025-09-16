@@ -1,0 +1,34 @@
+{
+  "name": "Python Basic Project",
+  "description": "A basic Python project template",
+  "structure": {
+    "src/": {
+      "type": "directory",
+      "description": "Source code directory"
+    },
+    "tests/": {
+      "type": "directory", 
+      "description": "Test files directory"
+    },
+    "requirements.txt": {
+      "type": "file",
+      "content": "# Project dependencies\n",
+      "description": "Python dependencies"
+    },
+    "README.md": {
+      "type": "file",
+      "content": "# {project_name}\n\n{project_description}\n\n## Installation\n\n```bash\npip install -r requirements.txt\n```\n\n## Usage\n\n```bash\npython src/main.py\n```\n\n## Testing\n\n```bash\npython -m pytest tests/\n```\n",
+      "description": "Project documentation"
+    },
+    ".gitignore": {
+      "type": "file",
+      "content": "# Byte-compiled / optimized / DLL files\n__pycache__/\n*.py[cod]\n*$py.class\n\n# C extensions\n*.so\n\n# Distribution / packaging\n.Python\nbuild/\ndevelop-eggs/\ndist/\ndownloads/\neggs/\n.eggs/\nlib/\nlib64/\nparts/\nsdist/\nvar/\nwheels/\n*.egg-info/\n.installed.cfg\n*.egg\n\n# PyInstaller\n*.manifest\n*.spec\n\n# Installer logs\npip-log.txt\npip-delete-this-directory.txt\n\n# Unit test / coverage reports\nhtmlcov/\n.tox/\n.coverage\n.coverage.*\n.cache\nnosetests.xml\ncoverage.xml\n*.cover\n.hypothesis/\n.pytest_cache/\n\n# Translations\n*.mo\n*.pot\n\n# Django stuff:\n*.log\nlocal_settings.py\ndb.sqlite3\n\n# Flask stuff:\ninstance/\n.webassets-cache\n\n# Scrapy stuff:\n.scrapy\n\n# Sphinx documentation\ndocs/_build/\n\n# PyBuilder\ntarget/\n\n# Jupyter Notebook\n.ipynb_checkpoints\n\n# pyenv\n.python-version\n\n# celery beat schedule file\ncelerybeat-schedule\n\n# SageMath parsed files\n*.sage.py\n\n# Environments\n.env\n.venv\nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/\n\n# Spyder project settings\n.spyderproject\n.spyproject\n\n# Rope project settings\n.ropeproject\n\n# mkdocs documentation\n/site\n\n# mypy\n.mypy_cache/\n.dmypy.json\ndmypy.json\n",
+      "description": "Git ignore file for Python"
+    },
+    "src/main.py": {
+      "type": "file",
+      "content": "#!/usr/bin/env python3\n\"\"\"\nMain entry point for {project_name}\n\"\"\"\n\ndef main():\n    \"\"\"Main function\"\"\"\n    print(\"Hello, {project_name}!\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "description": "Main Python file"
+    }
+  }
+}

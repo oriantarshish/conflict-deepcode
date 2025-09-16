@@ -1,0 +1,17 @@
+Create a new {project_type} project named '{project_name}'.
+
+Requirements:
+- Create appropriate directory structure
+- Include essential configuration files
+- Add a README.md with project description
+- Include .gitignore for {project_type} projects
+- Follow best practices for {project_type} development
+
+{template_info}
+
+Please provide:
+1. Directory structure (as a tree)
+2. Content for each file
+3. Setup instructions
+
+Project context: {context}

@@ -1,0 +1,21 @@
+Modify the following code based on the description:
+
+CURRENT CODE:
+```
+{current_content}
+```
+
+MODIFICATION REQUEST:
+{description}
+
+REQUIREMENTS:
+- Preserve existing functionality unless explicitly asked to change it
+- Maintain code style and formatting consistency
+- Add comments for new/modified sections
+- Ensure changes are minimal and focused
+- Handle edge cases and errors appropriately
+
+CONTEXT:
+{context}
+
+Please provide the complete modified file content.

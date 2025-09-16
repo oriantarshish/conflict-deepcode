@@ -1,0 +1,14 @@
+Create a new {file_type} file: {filename}
+
+Requirements:
+- Follow {file_type} best practices
+- Include appropriate imports/includes
+- Add proper documentation/comments
+- Include basic error handling where applicable
+- Follow coding standards for {file_type}
+
+{template_info}
+
+Context: {context}
+
+Please provide the complete file content.

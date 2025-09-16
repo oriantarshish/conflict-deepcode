@@ -1,0 +1,69 @@
+Metadata-Version: 2.4
+Name: deepcode-ai
+Version: 1.0.0
+Summary: Free AI coding assistant powered by DeepSeek V2 Coder through Ollama
+Home-page: https://github.com/deepcode-ai/deepcode
+Author: DeepCode Team
+Author-email: team@deepcode.dev
+Project-URL: Bug Reports, https://github.com/deepcode-ai/deepcode/issues
+Project-URL: Source, https://github.com/deepcode-ai/deepcode
+Project-URL: Documentation, https://deepcode-ai.readthedocs.io/
+Keywords: ai coding assistant deepseek ollama code generation programming
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Code Generators
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Text Processing :: Linguistic
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: click>=8.0.0
+Requires-Dist: requests>=2.28.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: gitpython>=3.1.0
+Requires-Dist: watchdog>=3.0.0
+Requires-Dist: pygments>=2.14.0
+Requires-Dist: python-magic>=0.4.27
+Requires-Dist: chardet>=5.0.0
+Requires-Dist: pytest>=7.0.0
+Requires-Dist: pytest-cov>=4.0.0
+Requires-Dist: pytest-asyncio>=0.21.0
+Requires-Dist: black>=23.0.0
+Requires-Dist: isort>=5.12.0
+Requires-Dist: mypy>=1.0.0
+Requires-Dist: pre-commit>=3.0.0
+Requires-Dist: flake8>=6.0.0
+Requires-Dist: sphinx>=5.0.0
+Requires-Dist: sphinx-rtd-theme>=1.0.0
+Requires-Dist: sphinx-click>=4.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: pre-commit>=3.0.0; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx>=5.0.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.0.0; extra == "docs"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license-file
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
