@@ -6,10 +6,11 @@ Handles communication with local Ollama instance
 import requests
 import json
 import time
-from typing import Dict, List, Optional, Iterator
+from typing import Dict, List, Optional, Iterator, Any
 from dataclasses import dataclass
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
+import threading
 
 console = Console()
 
@@ -23,12 +24,17 @@ class OllamaClient:
         self.config = config
         self.host = config.get('ollama.host', 'http://localhost:11434')
         self.model = config.get('ollama.model', 'deepseek-coder-v2')
-        # Larger defaults for smarter, longer context; can be overridden by CLI/config
-        self.timeout = config.get('ollama.timeout', 120)
-        self.num_ctx = config.get('ollama.num_ctx', config.get('ollama.max_tokens', 32768))
-        self.num_predict = config.get('ollama.num_predict', 2048)
+        # Optimized defaults for faster responses; can be overridden by CLI/config
+        self.timeout = config.get('ollama.timeout', 15)  # Reduced to 15 seconds for faster responses
+        self.num_ctx = config.get('ollama.num_ctx', config.get('ollama.max_tokens', 8192))  # Reduced context for speed
+        self.num_predict = config.get('ollama.num_predict', 512)  # Reduced for faster generation
         self.temperature = config.get('ollama.temperature', 0.2)
         self.top_p = config.get('ollama.top_p', 0.9)
+        self.fallback_timeout = config.get('ollama.fallback_timeout', 10)  # Fallback timeout reduced for speed
+        
+        # Performance monitoring
+        self.response_times = []
+        self.lock = threading.Lock()
         
     def is_available(self) -> bool:
         """Check if Ollama is running and accessible"""
@@ -105,6 +111,8 @@ class OllamaClient:
             }
         }
         
+        # Try primary request with full timeout
+        start_time = time.time()
         try:
             response = requests.post(
                 f"{self.host}/api/chat",
@@ -115,16 +123,66 @@ class OllamaClient:
             response.raise_for_status()
             
             if stream:
-                return self._handle_streaming_response(response, callback)
+                # Even if stream=True is requested upstream, prefer non-streaming JSON parse on Windows
+                # to prevent carriage-return/newline issues in certain terminals.
+                try:
+                    result_data = response.json()
+                    result = result_data.get('message', {}).get('content', '')
+                except Exception:
+                    result = self._handle_streaming_response(response, callback)
             else:
-                result = response.json()
-                return result.get('message', {}).get('content', '')
+                result_data = response.json()
+                result = result_data.get('message', {}).get('content', '')
+                
+            # Track response time
+            response_time = time.time() - start_time
+            self._track_response_time(response_time)
+            return result
                 
         except requests.exceptions.Timeout:
-            raise Exception("Request timed out. Try increasing the timeout in config.")
+            # Track timeout
+            response_time = time.time() - start_time
+            self._track_response_time(response_time, timed_out=True)
+            
+            # Try fallback with shorter timeout
+            console.print("[yellow]⚠️  Request timed out, trying with shorter timeout...[/yellow]")
+            fallback_start = time.time()
+            try:
+                response = requests.post(
+                    f"{self.host}/api/chat",
+                    json=payload,
+                    timeout=self.fallback_timeout,
+                    stream=stream
+                )
+                response.raise_for_status()
+                
+                if stream:
+                    result = self._handle_streaming_response(response, callback)
+                else:
+                    result_data = response.json()
+                    result = result_data.get('message', {}).get('content', '')
+                
+                # Track fallback response time
+                fallback_time = time.time() - fallback_start
+                self._track_response_time(fallback_time)
+                return result
+            except requests.exceptions.Timeout:
+                fallback_time = time.time() - fallback_start
+                self._track_response_time(fallback_time, timed_out=True)
+                raise Exception("Request timed out even with fallback timeout. Try simplifying your request or check if Ollama is responsive.")
+            except requests.exceptions.RequestException as e:
+                fallback_time = time.time() - fallback_start
+                self._track_response_time(fallback_time, error=True)
+                raise Exception(f"Fallback request failed: {e}")
         except requests.exceptions.RequestException as e:
+            # Track error response time
+            response_time = time.time() - start_time
+            self._track_response_time(response_time, error=True)
             raise Exception(f"Request failed: {e}")
         except json.JSONDecodeError:
+            # Track JSON error response time
+            response_time = time.time() - start_time
+            self._track_response_time(response_time, error=True)
             raise Exception("Invalid response from Ollama")
     
     def _handle_streaming_response(self, response, callback=None) -> str:
@@ -152,11 +210,20 @@ class OllamaClient:
                     except json.JSONDecodeError:
                         continue
                         
+        except requests.exceptions.ChunkedEncodingError:
+            # Handle connection issues during streaming
+            error_msg = "\n[yellow]⚠️  Connection interrupted during streaming[/yellow]"
+            if callback:
+                callback(error_msg)
+            else:
+                console.print(error_msg)
+            full_response += error_msg
         except KeyboardInterrupt:
             if callback:
                 callback("\n[yellow]⚠️  Generation interrupted[/yellow]")
             else:
                 console.print("\n[yellow]⚠️  Generation interrupted[/yellow]")
+            full_response += "\n⚠️  Generation interrupted"
             
         return full_response
     
@@ -278,3 +345,45 @@ Please provide the complete test file."""
             return []
         except:
             return []
+    
+    def _track_response_time(self, response_time: float, timed_out: bool = False, error: bool = False):
+        """Track response time for performance monitoring"""
+        with self.lock:
+            self.response_times.append({
+                'time': time.time(),
+                'duration': response_time,
+                'timed_out': timed_out,
+                'error': error
+            })
+            
+            # Keep only last 100 response times
+            if len(self.response_times) > 100:
+                self.response_times = self.response_times[-100:]
+    
+    def get_performance_stats(self) -> Dict[str, Any]:
+        """Get performance statistics"""
+        with self.lock:
+            if not self.response_times:
+                return {
+                    'total_requests': 0,
+                    'average_response_time': 0,
+                    'timeout_rate': 0,
+                    'error_rate': 0
+                }
+            
+            total_requests = len(self.response_times)
+            successful_requests = [r for r in self.response_times if not r['timed_out'] and not r['error']]
+            timeout_requests = [r for r in self.response_times if r['timed_out']]
+            error_requests = [r for r in self.response_times if r['error']]
+            
+            avg_response_time = sum(r['duration'] for r in successful_requests) / len(successful_requests) if successful_requests else 0
+            
+            return {
+                'total_requests': total_requests,
+                'successful_requests': len(successful_requests),
+                'timeout_requests': len(timeout_requests),
+                'error_requests': len(error_requests),
+                'average_response_time': round(avg_response_time, 2),
+                'timeout_rate': round(len(timeout_requests) / total_requests * 100, 2),
+                'error_rate': round(len(error_requests) / total_requests * 100, 2)
+            }

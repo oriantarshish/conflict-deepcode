@@ -16,26 +16,63 @@ const pythonScript = path.join(packageDir, 'src', 'main.py');
 // Check if Python is available
 function checkPython() {
     return new Promise((resolve, reject) => {
-        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-        const check = spawn(pythonCmd, ['--version'], { stdio: 'pipe' });
-        
-        check.on('close', (code) => {
-            if (code === 0) {
-                resolve(pythonCmd);
-            } else {
-                // Try alternative Python commands
-                const altCmd = process.platform === 'win32' ? 'py' : 'python';
-                const altCheck = spawn(altCmd, ['--version'], { stdio: 'pipe' });
-                
-                altCheck.on('close', (altCode) => {
-                    if (altCode === 0) {
-                        resolve(altCmd);
-                    } else {
-                        reject(new Error('Python not found. Please install Python 3.8+ to use dpcd.'));
-                    }
-                });
+        const pythonCmds = process.platform === 'win32'
+            ? ['python', 'py']
+            : ['python3', 'python'];
+
+        let triedCmds = 0;
+
+        function tryNext() {
+            if (triedCmds >= pythonCmds.length) {
+                reject(new Error('Python not found. Please install Python 3.8+ to use dpcd.'));
+                return;
             }
-        });
+
+            const cmd = pythonCmds[triedCmds++];
+            const check = spawn(cmd, ['--version'], { stdio: 'pipe' });
+
+            check.on('close', (code) => {
+                if (code === 0) {
+                    // On non-Windows, verify it's Python 3+
+                    if (process.platform !== 'win32') {
+                        const versionCheck = spawn(cmd, ['-c', 'import sys; print(sys.version_info[:2])'], { stdio: 'pipe' });
+                        let versionOutput = '';
+
+                        versionCheck.stdout.on('data', (data) => {
+                            versionOutput += data.toString();
+                        });
+
+                        versionCheck.on('close', (versionCode) => {
+                            if (versionCode === 0) {
+                                try {
+                                    const version = versionOutput.trim().replace(/[()]/g, '').split(',').map(x => parseInt(x.trim()));
+                                    if (version[0] >= 3 && version[1] >= 8) {
+                                        resolve(cmd);
+                                    } else {
+                                        console.log(`⚠️  ${cmd} is Python ${version[0]}.${version[1]}, need 3.8+. Trying alternatives...`);
+                                        tryNext();
+                                    }
+                                } catch (e) {
+                                    tryNext();
+                                }
+                            } else {
+                                tryNext();
+                            }
+                        });
+                    } else {
+                        resolve(cmd);
+                    }
+                } else {
+                    tryNext();
+                }
+            });
+
+            check.on('error', () => {
+                tryNext();
+            });
+        }
+
+        tryNext();
     });
 }
 

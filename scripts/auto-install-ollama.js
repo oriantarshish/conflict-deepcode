@@ -74,16 +74,36 @@ class OllamaInstaller {
 
     async downloadOllamaMac() {
         return new Promise((resolve, reject) => {
+            // First try the official install script
             const script = `
                 curl -fsSL https://ollama.ai/install.sh | sh
             `;
-            
+
             exec(script, (error, stdout, stderr) => {
-                if (error) {
-                    reject(error);
-                } else {
-                    console.log('✅ Ollama installed on macOS');
+                if (!error) {
+                    console.log('✅ Ollama installed on macOS using official script');
                     resolve();
+                } else {
+                    console.log('⚠️  Official install script failed, trying Homebrew fallback...');
+                    // Fallback to Homebrew if available
+                    const brewScript = `
+                        if command -v brew >/dev/null 2>&1; then
+                            brew install ollama
+                        else
+                            echo "Homebrew not found. Please install Ollama manually from https://ollama.ai"
+                            exit 1
+                        fi
+                    `;
+
+                    exec(brewScript, (brewError, brewStdout, brewStderr) => {
+                        if (!brewError) {
+                            console.log('✅ Ollama installed on macOS using Homebrew');
+                            resolve();
+                        } else {
+                            console.log('❌ Both installation methods failed');
+                            reject(new Error('Failed to install Ollama on macOS'));
+                        }
+                    });
                 }
             });
         });

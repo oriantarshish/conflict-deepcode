@@ -19,37 +19,106 @@ if (!fs.existsSync(requirementsFile)) {
     return;
 }
 
-// Install Python dependencies
-function installPythonDeps() {
+// Find Python command
+function findPythonCmd() {
     return new Promise((resolve, reject) => {
-        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-        
+        const pythonCmds = process.platform === 'win32'
+            ? ['python', 'py']
+            : ['python3', 'python'];
+
+        let triedCmds = 0;
+
+        function tryNext() {
+            if (triedCmds >= pythonCmds.length) {
+                reject(new Error('Python not found. Please install Python 3.8+'));
+                return;
+            }
+
+            const cmd = pythonCmds[triedCmds++];
+            const check = spawn(cmd, ['--version'], { stdio: 'pipe' });
+
+            check.on('close', (code) => {
+                if (code === 0) {
+                    // On non-Windows, verify it's Python 3+
+                    if (process.platform !== 'win32') {
+                        const versionCheck = spawn(cmd, ['-c', 'import sys; print(sys.version_info[:2])'], { stdio: 'pipe' });
+                        let versionOutput = '';
+
+                        versionCheck.stdout.on('data', (data) => {
+                            versionOutput += data.toString();
+                        });
+
+                        versionCheck.on('close', (versionCode) => {
+                            if (versionCode === 0) {
+                                try {
+                                    const version = versionOutput.trim().replace(/[()]/g, '').split(',').map(x => parseInt(x.trim()));
+                                    if (version[0] >= 3 && version[1] >= 8) {
+                                        resolve(cmd);
+                                    } else {
+                                        console.log(`⚠️  ${cmd} is Python ${version[0]}.${version[1]}, need 3.8+. Trying alternatives...`);
+                                        tryNext();
+                                    }
+                                } catch (e) {
+                                    tryNext();
+                                }
+                            } else {
+                                tryNext();
+                            }
+                        });
+                    } else {
+                        resolve(cmd);
+                    }
+                } else {
+                    tryNext();
+                }
+            });
+
+            check.on('error', () => {
+                tryNext();
+            });
+        }
+
+        tryNext();
+    });
+}
+
+// Install Python dependencies
+async function installPythonDeps() {
+    try {
+        const pythonCmd = await findPythonCmd();
+
         console.log('📦 Installing Python dependencies...');
-        
-        const pip = spawn(pythonCmd, ['-m', 'pip', 'install', '-r', requirementsFile], {
-            stdio: 'inherit',
-            cwd: packageDir
-        });
-        
-        pip.on('close', (code) => {
-            if (code === 0) {
-                console.log('✅ Python dependencies installed successfully');
-                resolve();
-            } else {
-                console.log('⚠️  Failed to install some Python dependencies');
+
+        return new Promise((resolve) => {
+            const pip = spawn(pythonCmd, ['-m', 'pip', 'install', '-r', requirementsFile], {
+                stdio: 'inherit',
+                cwd: packageDir
+            });
+
+            pip.on('close', (code) => {
+                if (code === 0) {
+                    console.log('✅ Python dependencies installed successfully');
+                    resolve();
+                } else {
+                    console.log('⚠️  Failed to install some Python dependencies');
+                    console.log('You may need to install them manually:');
+                    console.log(`pip install -r ${requirementsFile}`);
+                    resolve(); // Don't fail the installation
+                }
+            });
+
+            pip.on('error', (error) => {
+                console.log('⚠️  Error installing Python dependencies:', error.message);
                 console.log('You may need to install them manually:');
                 console.log(`pip install -r ${requirementsFile}`);
                 resolve(); // Don't fail the installation
-            }
+            });
         });
-        
-        pip.on('error', (error) => {
-            console.log('⚠️  Error installing Python dependencies:', error.message);
-            console.log('You may need to install them manually:');
-            console.log(`pip install -r ${requirementsFile}`);
-            resolve(); // Don't fail the installation
-        });
-    });
+    } catch (error) {
+        console.log('⚠️  Python not found, skipping Python dependencies');
+        console.log('You may need to install Python 3.8+ and dependencies manually:');
+        console.log(`pip install -r ${requirementsFile}`);
+    }
 }
 
 // Setup Ollama automatically

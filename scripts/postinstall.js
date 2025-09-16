@@ -83,29 +83,78 @@ performance:
     }
 }
 
-// Check Python installation
-function checkPython() {
-    const { spawn } = require('child_process');
-    
-    return new Promise((resolve) => {
-        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-        const check = spawn(pythonCmd, ['--version'], { stdio: 'pipe' });
-        
-        check.on('close', (code) => {
-            if (code === 0) {
-                console.log('✅ Python is available');
-                resolve(true);
-            } else {
-                console.log('⚠️  Python not found. Please install Python 3.8+');
-                resolve(false);
+// Find Python command
+function findPythonCmd() {
+    return new Promise((resolve, reject) => {
+        const pythonCmds = process.platform === 'win32'
+            ? ['python', 'py']
+            : ['python3', 'python'];
+
+        let triedCmds = 0;
+
+        function tryNext() {
+            if (triedCmds >= pythonCmds.length) {
+                reject(new Error('Python not found'));
+                return;
             }
-        });
-        
-        check.on('error', () => {
-            console.log('⚠️  Python not found. Please install Python 3.8+');
-            resolve(false);
-        });
+
+            const cmd = pythonCmds[triedCmds++];
+            const check = spawn(cmd, ['--version'], { stdio: 'pipe' });
+
+            check.on('close', (code) => {
+                if (code === 0) {
+                    // On non-Windows, verify it's Python 3+
+                    if (process.platform !== 'win32') {
+                        const versionCheck = spawn(cmd, ['-c', 'import sys; print(sys.version_info[:2])'], { stdio: 'pipe' });
+                        let versionOutput = '';
+
+                        versionCheck.stdout.on('data', (data) => {
+                            versionOutput += data.toString();
+                        });
+
+                        versionCheck.on('close', (versionCode) => {
+                            if (versionCode === 0) {
+                                try {
+                                    const version = versionOutput.trim().replace(/[()]/g, '').split(',').map(x => parseInt(x.trim()));
+                                    if (version[0] >= 3 && version[1] >= 8) {
+                                        resolve(cmd);
+                                    } else {
+                                        tryNext();
+                                    }
+                                } catch (e) {
+                                    tryNext();
+                                }
+                            } else {
+                                tryNext();
+                            }
+                        });
+                    } else {
+                        resolve(cmd);
+                    }
+                } else {
+                    tryNext();
+                }
+            });
+
+            check.on('error', () => {
+                tryNext();
+            });
+        }
+
+        tryNext();
     });
+}
+
+// Check Python installation
+async function checkPython() {
+    try {
+        const pythonCmd = await findPythonCmd();
+        console.log('✅ Python is available');
+        return true;
+    } catch (error) {
+        console.log('⚠️  Python not found. Please install Python 3.8+');
+        return false;
+    }
 }
 
 // Main post-installation

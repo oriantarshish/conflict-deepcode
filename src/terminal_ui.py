@@ -61,6 +61,7 @@ class TypingAnimation:
         self.current_text = ""
         self.is_typing = False
         self.typing_speed = 0.01  # Faster typing speed
+        self.thinking_states = ["🧠 Thinking", "🧠 Thinking.", "🧠 Thinking..", "🧠 Thinking..."]
         
     def start_typing(self, text=""):
         """Start the typing animation"""
@@ -74,6 +75,19 @@ class TypingAnimation:
     def stop_typing(self):
         """Stop the typing animation"""
         self.is_typing = False
+        
+    def show_thinking_animation(self):
+        """Show an enhanced thinking animation while AI is processing"""
+        # Create a live display for the thinking animation
+        with Live(console=self.console, refresh_per_second=5) as live:
+            state_index = 0
+            start_time = time.time()
+            
+            # Continue animation until stopped (typically by another thread)
+            while self.is_typing and (time.time() - start_time) < 60:  # Max 60 seconds
+                live.update(Text(self.thinking_states[state_index], style="bold yellow"))
+                state_index = (state_index + 1) % len(self.thinking_states)
+                time.sleep(0.3)
         
     def display_typing_response(self, full_response):
         """Display response with typing animation using Rich Live"""
@@ -348,20 +362,29 @@ class ConflictDeepCodeUI:
                 # Otherwise, treat as regular chat
                 context = self.get_current_context()
 
-                # Show thinking indicator
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=self.console,
-                    transient=True
-                ) as progress:
-                    task = progress.add_task("🤖 DeepCode is thinking...", total=None)
+                # Show enhanced thinking animation
+                thinking_thread = None
+                if self.enable_typing_animation:
+                    self.typing_animation.start_typing()
+                    thinking_thread = threading.Thread(target=self.typing_animation.show_thinking_animation)
+                    thinking_thread.daemon = True
+                    thinking_thread.start()
 
-                    # Get response based on agent type
+                try:
+                    # Get response based on agent type. Avoid streaming to prevent input/newline glitches on Windows.
                     if self.use_optimized_agent:
                         response = self.agent.enhanced_chat(user_input, context)
                     else:
-                        response = self.agent.chat_streaming(user_input, context, self.typing_animation)
+                        # Fall back to non-streaming basic chat if available
+                        try:
+                            response = self.agent.chat(user_input, context)
+                        except Exception:
+                            response = self.agent.chat_streaming(user_input, context, self.typing_animation)
+                finally:
+                    # Stop thinking animation
+                    if self.enable_typing_animation and thinking_thread:
+                        self.typing_animation.stop_typing()
+                        thinking_thread.join(timeout=1)  # Wait up to 1 second for thread to finish
 
                 # Display the response with or without typing animation
                 if response and not response.startswith("FILE_EDIT_REQUEST:"):
@@ -722,11 +745,8 @@ ignore_patterns:
         file_path = self._extract_file_from_message(message, context)
 
         if not file_path:
-            # Ask user which file to modify
-            file_path = self.console.input("[bold cyan]📝 Which file should I modify/create? [/bold cyan] ").strip()
-            if not file_path:
-                self.console.print("[red]No file specified. Please try again.[/red]")
-                return
+            # Default to an inferred filename to avoid interactive prompts
+            file_path = "deepcode_auto.py"
 
             file_obj = Path(file_path)
             if not file_obj.exists():
@@ -742,12 +762,10 @@ ignore_patterns:
                         file_obj = Path(file_path)
 
             if not file_obj.exists():
-                if Confirm.ask(f"[bold yellow]File {file_path} does not exist. Create it?[/bold yellow]"):
-                    file_obj.touch()
-                    self.console.print(f"[green]Created new file {file_path}[/green]")
-                else:
-                    self.console.print("[red]Operation cancelled.[/red]")
-                    return
+                # Auto-create without confirmation as requested
+                file_obj.parent.mkdir(parents=True, exist_ok=True)
+                file_obj.touch()
+                self.console.print(f"[green]Created new file {file_path}[/green]")
 
             # Handle the file editing
             try:

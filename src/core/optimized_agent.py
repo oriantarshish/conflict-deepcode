@@ -325,11 +325,9 @@ Respond with ONLY the complete file content, no explanations."""
                     self._add_to_conversation_history('assistant', cached_response)
                     return cached_response
             
-            # Generate response
-            if self.enable_streaming:
-                response = self.ollama.chat(messages, stream=False)  # Use non-streaming for caching
-            else:
-                response = self.ollama.chat(messages, stream=False)
+            # Generate response. Disable streaming here to avoid UI conflicts with Rich animations
+            # and to ensure we return a clean string for the terminal UI to render.
+            response = self.ollama.chat(messages, stream=False)
             
             # Cache response
             if self.enable_caching:
@@ -424,49 +422,89 @@ Respond naturally and helpfully. If asked to edit files, provide complete, produ
         
         return messages
 
-    def _handle_smart_file_edit(self, message: str, context: Dict[str, Any], 
-                               file_analysis: Optional[FileAnalysis]) -> str:
-        """Handle file editing with smart analysis and conflict prevention"""
+    def _handle_smart_file_edit(self, message: str, context: Dict[str, Any],
+                                file_analysis: Optional[FileAnalysis]) -> str:
+        """Handle file editing or creation with smart analysis and conflict prevention"""
         try:
-            # Determine file to edit
+            # Determine file to work with
             file_path = self._extract_file_path(message, context)
             if not file_path and self.last_file_mentioned:
                 file_path = self.last_file_mentioned
-            
+
             if not file_path:
-                return "Please specify which file you want to edit."
-            
-            # Perform smart modification
-            result = self.smart_modify_file(file_path, message, backup=True)
-            
-            if result["success"]:
-                summary_parts = [
-                    f"✅ Successfully updated {file_path}",
-                    "",
-                    "📊 CHANGES SUMMARY:",
-                    result["changes_summary"]
-                ]
-                
-                if result.get("conflicts"):
-                    summary_parts.extend([
+                return "Please specify which file you want to work with."
+
+            # Check if this is a creation request
+            message_lower = message.lower()
+            is_creation = any(kw in message_lower for kw in ['create', 'make', 'generate', 'new'])
+
+            if is_creation:
+                # Handle file creation
+                from pathlib import Path
+                file_obj = Path(file_path)
+
+                # If file already exists, ask for clarification
+                if file_obj.exists():
+                    return f"File {file_path} already exists. If you want to modify it, please use 'edit' or 'modify' instead of 'create'."
+
+                # Perform file creation
+                result = self.create_file(file_path, template=None)
+
+                if result["success"]:
+                    summary_parts = [
+                        f"✅ Successfully created {file_path}",
                         "",
-                        "⚠️ CONFLICTS DETECTED (resolved):",
-                        *[f"- {c['message']}" for c in result["conflicts"][:3]]
-                    ])
-                
-                if result["post_analysis"].suggestions:
-                    summary_parts.extend([
-                        "",
-                        "💡 SUGGESTIONS:",
-                        *[f"- {s}" for s in result["post_analysis"].suggestions[:3]]
-                    ])
-                
-                return "\n".join(summary_parts)
+                        f"📄 File type: {result.get('explanation', 'Unknown').split()[1] if 'explanation' in result else 'Unknown'}",
+                        f"📊 Content length: {len(result.get('content', ''))} characters"
+                    ]
+
+                    if result.get("suggestions"):
+                        summary_parts.extend([
+                            "",
+                            "💡 SUGGESTIONS:",
+                            *[f"- {s}" for s in result["suggestions"][:3]]
+                        ])
+
+                    return "\n".join(summary_parts)
+                else:
+                    return f"❌ Failed to create {file_path}: {result['error']}"
             else:
-                return f"❌ Failed to update {file_path}: {result['error']}"
-                
+                # Handle file modification
+                file_obj = Path(file_path)
+                if not file_obj.exists():
+                    return f"File {file_path} does not exist. If you want to create it, please use 'create'."
+
+                # Perform smart modification
+                result = self.smart_modify_file(file_path, message, backup=True)
+
+                if result["success"]:
+                    summary_parts = [
+                        f"✅ Successfully updated {file_path}",
+                        "",
+                        "📊 CHANGES SUMMARY:",
+                        result["changes_summary"]
+                    ]
+
+                    if result.get("conflicts"):
+                        summary_parts.extend([
+                            "",
+                            "⚠️ CONFLICTS DETECTED (resolved):",
+                            *[f"- {c['message']}" for c in result["conflicts"][:3]]
+                        ])
+
+                    if result["post_analysis"].suggestions:
+                        summary_parts.extend([
+                            "",
+                            "💡 SUGGESTIONS:",
+                            *[f"- {s}" for s in result["post_analysis"].suggestions[:3]]
+                        ])
+
+                    return "\n".join(summary_parts)
+                else:
+                    return f"❌ Failed to update {file_path}: {result['error']}"
+
         except Exception as e:
-            return f"Error during smart file editing: {str(e)}"
+            return f"Error during file operation: {str(e)}"
 
     def _generate_change_summary(self, before: FileAnalysis, after: FileAnalysis) -> str:
         """Generate a summary of changes made to the file"""
@@ -541,12 +579,12 @@ Respond naturally and helpfully. If asked to edit files, provide complete, produ
 
     # Utility methods from original agent (optimized)
     def _should_edit_file(self, message: str) -> bool:
-        """Check if message requests file editing"""
-        edit_keywords = ['edit', 'modify', 'change', 'update', 'create', 'write', 'add', 'fix']
-        file_keywords = ['file', 'code', 'function', 'class', 'method']
-        
+        """Check if message requests file editing or creation"""
+        edit_keywords = ['edit', 'modify', 'change', 'update', 'create', 'write', 'add', 'fix', 'make', 'generate']
+        file_keywords = ['file', 'code', 'function', 'class', 'method', 'script', 'program']
+
         message_lower = message.lower()
-        return (any(kw in message_lower for kw in edit_keywords) and 
+        return (any(kw in message_lower for kw in edit_keywords) and
                 any(kw in message_lower for kw in file_keywords))
 
     def _is_continuation_of_file_work(self, message: str) -> bool:
@@ -577,16 +615,49 @@ Respond naturally and helpfully. If asked to edit files, provide complete, produ
     def _extract_code_from_response(self, response: str) -> str:
         """Extract code from AI response (optimized)"""
         import re
-        
+
         # Look for code blocks
         code_block_pattern = r'```(?:\w+)?\n(.*?)\n```'
         match = re.search(code_block_pattern, response, re.DOTALL)
-        
+
         if match:
             return match.group(1).strip()
-        
+
         # If no code blocks, return response as-is
         return response.strip()
+
+    def _detect_file_type(self, extension: str) -> str:
+        """Detect file type from extension"""
+        type_map = {
+            '.py': 'python',
+            '.js': 'javascript',
+            '.ts': 'typescript',
+            '.jsx': 'jsx',
+            '.tsx': 'tsx',
+            '.java': 'java',
+            '.cpp': 'cpp',
+            '.c': 'c',
+            '.go': 'go',
+            '.rs': 'rust',
+            '.php': 'php',
+            '.rb': 'ruby',
+            '.cs': 'csharp',
+            '.swift': 'swift',
+            '.kt': 'kotlin',
+            '.scala': 'scala',
+            '.r': 'r',
+            '.sql': 'sql',
+            '.html': 'html',
+            '.css': 'css',
+            '.scss': 'scss',
+            '.vue': 'vue',
+            '.json': 'json',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.md': 'markdown',
+            '.txt': 'text'
+        }
+        return type_map.get(extension.lower(), 'text')
 
     def get_performance_stats(self) -> Dict[str, Any]:
         """Get performance statistics"""
@@ -607,6 +678,112 @@ Respond naturally and helpfully. If asked to edit files, provide complete, produ
         """Clear all caches for memory management"""
         self.response_cache.clear()
         self.code_analyzer.clear_cache()
+
+    def create_file(self, target: str, file_type: str = None, template: str = None) -> Dict[str, Any]:
+        """Create a new file with smart analysis and optimization"""
+        try:
+            from pathlib import Path
+
+            # Determine file path and type
+            file_path = Path(target)
+            if not file_type:
+                file_type = self._detect_file_type(file_path.suffix)
+
+            # Generate smart content based on file type and context
+            content = self._generate_smart_file_content(target, file_type, template)
+
+            # Create the file
+            success = self.file_manager.create_file(file_path, content)
+
+            if success:
+                # Analyze the created file for immediate feedback
+                if self.parallel_analysis:
+                    try:
+                        analysis = self.code_analyzer.analyze_file(file_path)
+                        suggestions = analysis.suggestions[:3] if analysis.suggestions else []
+                    except:
+                        analysis = None
+                        suggestions = []
+                else:
+                    analysis = None
+                    suggestions = []
+
+                result = {
+                    "success": True,
+                    "file": str(file_path),
+                    "content": content,
+                    "explanation": f"Created optimized {file_type} file with smart content generation",
+                    "analysis": analysis,
+                    "suggestions": suggestions
+                }
+
+                # Update last file mentioned
+                self.last_file_mentioned = str(file_path)
+
+                return result
+            else:
+                return {"success": False, "error": "Failed to create file"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _generate_smart_file_content(self, filename: str, file_type: str, template: str = None) -> str:
+        """Generate smart file content based on type and context"""
+        # Build context for content generation
+        context_parts = [
+            f"Creating a new {file_type} file: {filename}",
+            f"File type: {file_type}"
+        ]
+
+        if self.current_context.get('cwd'):
+            context_parts.append(f"Project directory: {self.current_context['cwd']}")
+
+        if self.last_file_mentioned:
+            context_parts.append(f"Related to: {self.last_file_mentioned}")
+
+        context = "\n".join(context_parts)
+
+        # Create prompt for smart content generation
+        if template:
+            prompt = f"""Create a {file_type} file named '{filename}' using the template '{template}'.
+
+Context: {context}
+
+Please generate complete, production-ready code that follows best practices for {file_type} files.
+Include appropriate imports, structure, and documentation."""
+        else:
+            prompt = f"""Create a new {file_type} file named '{filename}'.
+
+Context: {context}
+
+Please generate complete, well-structured {file_type} code that:
+1. Follows best practices for {file_type}
+2. Includes appropriate imports and dependencies
+3. Has proper structure and documentation
+4. Is ready for immediate use
+
+Generate only the file content, no explanations."""
+
+        messages = [
+            ChatMessage("system", f"You are an expert {file_type} developer. Generate high-quality, production-ready code."),
+            ChatMessage("user", prompt)
+        ]
+
+        # Use optimized settings for file creation
+        response = self.ollama.chat(messages, stream=False)
+
+        # Extract code from response
+        content = self._extract_code_from_response(response)
+
+        # If no code blocks found, use the response as-is but clean it up
+        if not content:
+            content = response.strip()
+
+        # Ensure we have some basic content
+        if not content or len(content.strip()) < 10:
+            content = f"# {filename}\n# Created by DeepCode AI Assistant\n# {file_type.upper()} file\n\n{content}"
+
+        return content
 
     def __del__(self):
         """Cleanup resources"""

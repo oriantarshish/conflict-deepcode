@@ -52,11 +52,14 @@ If deepcode is not found on Windows PowerShell, ensure the Python Scripts direct
 4) macOS setup notes
 
 Ollama
-- Preferred: Homebrew
-brew install ollama
+- The installer will automatically try to install Ollama using the official script
+- If that fails, it will attempt to use Homebrew as a fallback
+- Manual installation:
+  - Preferred: Homebrew
+  brew install ollama
 
-- Alternative:
-curl -fsSL https://ollama.ai/install.sh | sh
+  - Alternative:
+  curl -fsSL https://ollama.ai/install.sh | sh
 
 Start the Ollama service:
 - If using the app or service is already running, nothing else required
@@ -67,7 +70,9 @@ Download the default model:
 ollama pull deepseek-coder-v2
 
 Python and Node
-- Check versions:
+- The installer automatically detects Python 3.8+ installations
+- It tries python3 first, then python, and verifies the version is 3.8+
+- Check versions manually:
 python3 --version
 node --version
 
@@ -209,7 +214,9 @@ Run:
 ollama pull deepseek-coder-v2
 
 - Python not found:
-Install Python 3.8+ from https://python.org. On Windows the commands python or py should be available.
+Install Python 3.8+ from https://python.org. The installer automatically detects Python installations across platforms:
+- On Windows: tries python, then py
+- On macOS/Linux: tries python3, then python, and verifies version is 3.8+
 
 - Node not found:
 Install Node.js from https://nodejs.org

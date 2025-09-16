@@ -18,12 +18,13 @@ class Config:
             'ollama': {
                 'host': 'http://localhost:11434',
                 'model': 'deepseek-coder-v2',
-                'timeout': 120,
-                'num_ctx': 32768,
-                'num_predict': 2048,
+                'timeout': 15,  # Optimized for faster responses
+                'fallback_timeout': 10,  # Reduced fallback timeout
+                'num_ctx': 8192,  # Reduced context for speed
+                'num_predict': 512,  # Reduced for faster generation
                 'temperature': 0.2,
                 'top_p': 0.9,
-                'max_tokens': 32768
+                'max_tokens': 8192  # Match num_ctx
             },
             'agent': {
                 'use_optimized': True,
@@ -180,6 +181,10 @@ class Config:
         timeout = self.get('ollama.timeout')
         if not isinstance(timeout, int) or timeout < 1:
             errors['ollama.timeout'] = 'Must be a positive integer'
+        
+        fallback_timeout = self.get('ollama.fallback_timeout')
+        if not isinstance(fallback_timeout, int) or fallback_timeout < 1:
+            errors['ollama.fallback_timeout'] = 'Must be a positive integer'
         
         max_tokens = self.get('ollama.max_tokens')
         if not isinstance(max_tokens, int) or max_tokens < 100:
