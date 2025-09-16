@@ -18,11 +18,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.markdown import Markdown
 from rich.table import Table
 from rich import box
-from rich.syntax import Syntax
-from rich.prompt import Confirm
 from rich.live import Live
 from rich.layout import Layout
-import click
 from typing import Dict, Any
 import re
 import difflib
@@ -163,12 +160,8 @@ class ConflictDeepCodeUI:
                 return False
 
             if not self.ollama.has_model():
-                self.console.print("⚠️  [yellow]DeepSeek Coder V2 model not found[/yellow]")
-                if Confirm.ask("Do you want to download it now?"):
-                    self.download_model()
-                else:
-                    self.console.print("❌ [red]Model required to continue[/red]")
-                    return False
+                self.console.print("⚠️  [yellow]DeepSeek Coder V2 model not found. Attempting download...[/yellow]")
+                self.download_model()
 
             self.console.print("✅ [green]Ollama connected successfully[/green]")
             self.console.print(f"🤖 [cyan]Model: {self.ollama.get_current_model()}[/cyan]")
@@ -352,118 +345,6 @@ class ConflictDeepCodeUI:
                 self.console.print(f"❌ [red]Error: {e}[/red]")
 
     # Removed legacy create/modify/explain/review/test/status/init modes to simplify UI
-
-    def modify_mode(self, args=None):
-        """Modify mode interface (conversational)"""
-        self.console.print()
-        if args and len(args) >= 2:
-            file_path = args[0]
-            description = " ".join(args[1:])
-        else:
-            file_path = self.console.input("[bold cyan]✏️  File to modify:[/bold cyan] ").strip()
-            description = self.console.input("[bold cyan]What changes do you want to make?[/bold cyan] ").strip()
-
-        from commands.modify import modify_handler
-        ctx = type('Context', (), {
-            'obj': {
-                'config': self.config,
-                'console': self.console
-            }
-        })()
-        modify_handler(ctx, file_path, description, True)
-
-    def explain_mode(self, args=None):
-        """Explain mode interface (conversational)"""
-        self.console.print()
-        if args and len(args) >= 1:
-            file_path = args[0]
-        else:
-            file_path = self.console.input("[bold cyan]📖 File to explain:[/bold cyan] ").strip()
-        detail = self.console.input("[bold cyan]Detail level (basic/detailed/deep, default: basic):[/bold cyan] ").strip() or "basic"
-
-        from commands.explain import explain_handler
-        ctx = type('Context', (), {
-            'obj': {
-                'config': self.config,
-                'console': self.console
-            }
-        })()
-        explain_handler(ctx, file_path, detail)
-
-    def review_mode(self, args=None):
-        """Review mode interface (conversational)"""
-        self.console.print()
-        if args and len(args) >= 1:
-            file_path = args[0]
-        else:
-            file_path = self.console.input("[bold cyan]🔍 File to review:[/bold cyan] ").strip()
-        style = self.console.input("[bold cyan]Review style (security/performance/maintainability/all, default: all):[/bold cyan] ").strip() or "all"
-
-        from commands.review import review_handler
-        ctx = type('Context', (), {
-            'obj': {
-                'config': self.config,
-                'console': self.console
-            }
-        })()
-        review_handler(ctx, file_path, style)
-
-    def test_mode(self, args=None):
-        """Test mode interface (conversational)"""
-        self.console.print()
-        if args and len(args) >= 1:
-            file_path = args[0]
-        else:
-            file_path = self.console.input("[bold cyan]🧪 File to generate tests for:[/bold cyan] ").strip()
-        framework = self.console.input("[bold cyan]Testing framework (default: pytest):[/bold cyan] ").strip() or "pytest"
-
-        from commands.test import test_handler
-        ctx = type('Context', (), {
-            'obj': {
-                'config': self.config,
-                'console': self.console
-            }
-        })()
-        test_handler(ctx, file_path, framework, False)
-
-    # Removed status/init functionality
-
-    def init_mode(self):
-        """Init mode interface"""
-        self.console.print()
-        self.console.print("🚀 [bold]Initializing DeepCode in current directory...[/bold]")
-
-        deepcode_dir = Path('.deepcode')
-        deepcode_dir.mkdir(exist_ok=True)
-
-        local_config = deepcode_dir / 'config.yaml'
-        if not local_config.exists():
-            with open(local_config, 'w') as f:
-                f.write("""# DeepCode local configuration
-project:
-  name: ""
-  description: ""
-  language: ""
-
-ignore_patterns:
-  - ".git"
-  - "node_modules"
-  - "__pycache__"
-  - "*.pyc"
-  - ".deepcode"
-""")
-
-        gitignore = Path('.gitignore')
-        gitignore_content = ""
-        if gitignore.exists():
-            gitignore_content = gitignore.read_text()
-
-        if '.deepcode/' not in gitignore_content:
-            with open(gitignore, 'a') as f:
-                f.write('\n# DeepCode\n.deepcode/\n')
-
-        self.console.print("✅ [green]DeepCode initialized successfully![/green]")
-        self.console.print(f"📁 [cyan]Config: {local_config}[/cyan]")
 
     # Typing animation toggle removed from commands
 
