@@ -33,7 +33,7 @@ class Config:
                 'max_context_length': 32768,  # Increased for better context
                 'cache_ttl_minutes': 15,
                 'max_conversation_history': 50,  # Increased conversation history
-                'enable_dangerous_action_confirmation': True  # New setting for user confirmation
+                'enable_dangerous_action_confirmation': False  # Disabled for production - full access without prompts
             },
             'analyzer': {
                 'enable_ast_parsing': True,

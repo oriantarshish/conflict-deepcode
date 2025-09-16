@@ -242,35 +242,88 @@ class EnhancedDeepCodeAgent:
         return patterns
 
     def _classify_user_intent(self, message: str) -> str:
-        """Classify the user's intent from the message"""
+        """Classify the user's intent from the message with enhanced intelligence"""
         message_lower = message.lower()
 
-        # File operations
-        if any(word in message_lower for word in ['create', 'make', 'new', 'add']):
-            if 'file' in message_lower or 'folder' in message_lower:
-                return 'create_file_folder'
+        # Advanced intent detection with context awareness
+        intent_scores = {
+            'create_file_folder': 0,
+            'edit_file': 0,
+            'read_file': 0,
+            'delete_file': 0,
+            'analyze_code': 0,
+            'explain_code': 0,
+            'coding_task': 0,
+            'debug_help': 0,
+            'refactor_code': 0,
+            'test_code': 0,
+            'deploy_help': 0,
+            'general_chat': 1  # Base score
+        }
 
-        if any(word in message_lower for word in ['edit', 'modify', 'change', 'update']):
-            return 'edit_file'
+        # File operations with weighted scoring
+        create_keywords = ['create', 'make', 'new', 'add', 'generate', 'build']
+        if any(word in message_lower for word in create_keywords):
+            intent_scores['create_file_folder'] += 3
+            if 'file' in message_lower or 'folder' in message_lower or 'directory' in message_lower:
+                intent_scores['create_file_folder'] += 2
 
-        if any(word in message_lower for word in ['read', 'show', 'display', 'view']):
-            return 'read_file'
+        edit_keywords = ['edit', 'modify', 'change', 'update', 'fix', 'improve', 'replace']
+        if any(word in message_lower for word in edit_keywords):
+            intent_scores['edit_file'] += 3
 
-        if any(word in message_lower for word in ['delete', 'remove', 'erase']):
-            return 'delete_file'
+        read_keywords = ['read', 'show', 'display', 'view', 'open', 'check', 'see']
+        if any(word in message_lower for word in read_keywords):
+            intent_scores['read_file'] += 3
 
-        # Code analysis
-        if any(word in message_lower for word in ['analyze', 'review', 'check', 'examine']):
-            return 'analyze_code'
+        delete_keywords = ['delete', 'remove', 'erase', 'destroy', 'clean']
+        if any(word in message_lower for word in delete_keywords):
+            intent_scores['delete_file'] += 3
 
-        if any(word in message_lower for word in ['explain', 'understand', 'what does']):
-            return 'explain_code'
+        # Code analysis with context
+        analyze_keywords = ['analyze', 'review', 'check', 'examine', 'inspect', 'audit']
+        if any(word in message_lower for word in analyze_keywords):
+            intent_scores['analyze_code'] += 4
+            if 'code' in message_lower or 'file' in message_lower:
+                intent_scores['analyze_code'] += 2
 
-        # General coding
-        if any(word in message_lower for word in ['code', 'program', 'script', 'function']):
-            return 'coding_task'
+        explain_keywords = ['explain', 'understand', 'what does', 'how does', 'why']
+        if any(word in message_lower for word in explain_keywords):
+            intent_scores['explain_code'] += 4
 
-        return 'general_chat'
+        # Specialized coding tasks
+        debug_keywords = ['debug', 'error', 'bug', 'fix', 'issue', 'problem', 'broken']
+        if any(word in message_lower for word in debug_keywords):
+            intent_scores['debug_help'] += 4
+
+        refactor_keywords = ['refactor', 'restructure', 'optimize', 'clean', 'simplify']
+        if any(word in message_lower for word in refactor_keywords):
+            intent_scores['refactor_code'] += 4
+
+        test_keywords = ['test', 'testing', 'unit test', 'integration', 'coverage']
+        if any(word in message_lower for word in test_keywords):
+            intent_scores['test_code'] += 4
+
+        deploy_keywords = ['deploy', 'deployment', 'publish', 'release', 'production']
+        if any(word in message_lower for word in deploy_keywords):
+            intent_scores['deploy_help'] += 4
+
+        # General coding context
+        coding_keywords = ['code', 'program', 'script', 'function', 'class', 'method', 'variable']
+        if any(word in message_lower for word in coding_keywords):
+            intent_scores['coding_task'] += 2
+
+        # Question patterns
+        if message.strip().endswith('?') or message_lower.startswith(('what', 'how', 'why', 'when', 'where')):
+            intent_scores['explain_code'] += 1
+
+        # Code block detection
+        if '```' in message or 'def ' in message or 'function' in message:
+            intent_scores['coding_task'] += 2
+
+        # Return the intent with highest score
+        best_intent = max(intent_scores.items(), key=lambda x: x[1])
+        return best_intent[0] if best_intent[1] > 1 else 'general_chat'
 
     def _calculate_intent_confidence(self, message: str, analysis: ContextAnalysis) -> float:
         """Calculate confidence score for intent classification"""
@@ -957,38 +1010,52 @@ class EnhancedDeepCodeAgent:
             context_parts.append("")
 
         # Create system prompt
-        system_prompt = f"""You are DeepCode, a super-intelligent AI coding assistant with advanced memory and analysis capabilities.
+        system_prompt = f"""You are DeepCode, a super-intelligent AI coding assistant with advanced memory, deep context analysis, and proactive problem-solving capabilities.
 
-        {chr(10).join(context_parts)}
+         {chr(10).join(context_parts)}
 
-        INSTRUCTIONS:
-        - Use the enhanced context above to provide intelligent, context-aware responses
-        - Reference previous conversations when relevant
-        - Consider the user's intent and confidence score
-        - Provide actionable suggestions based on the analysis
-        - Be concise but comprehensive
-        - If suggesting code changes, explain the reasoning
-        - Remember what files the user has worked on recently
+         CORE CAPABILITIES:
+         - Advanced context analysis with intent detection and confidence scoring
+         - Persistent memory across sessions with conversation history
+         - Intelligent file operations with safety and backup mechanisms
+         - Deep code analysis with AST parsing and complexity metrics
+         - Proactive suggestions based on project patterns and user behavior
+         - Multi-language support with language-specific best practices
 
-        ENHANCED FILE OPERATIONS:
-        - CREATE: Create new files
-        - READ: Read file contents
-        - WRITE: Overwrite file contents (with backup)
-        - APPEND: Add content to existing files
-        - DELETE: Delete files (with confirmation and backup)
-        - CLEAR: Clear file contents (with confirmation and backup)
+         INTELLIGENCE PRINCIPLES:
+         - Analyze user intent deeply and provide contextually relevant responses
+         - Reference previous conversations and learned patterns when applicable
+         - Anticipate user needs and offer proactive solutions
+         - Provide detailed explanations for complex operations
+         - Learn from user interactions to improve future responses
+         - Maintain awareness of project structure and coding patterns
 
-        IMPORTANT: For file operations, respond with:
-        FILE_EDIT_REQUEST: [filename] [action] [content]
+         ENHANCED FILE OPERATIONS:
+         - CREATE: Intelligently create new files with appropriate content
+         - READ: Analyze and summarize file contents with insights
+         - WRITE: Modify files with comprehensive change tracking
+         - APPEND: Add content to existing files seamlessly
+         - DELETE: Safely remove files with backup and confirmation
+         - CLEAR: Reset file contents with safety measures
 
-        Where:
-        - filename: the file to edit (use context if not specified)
-        - action: READ, WRITE, APPEND, CREATE, DELETE, or CLEAR
-        - content: the new content (for WRITE/CREATE/APPEND) or empty for DELETE/CLEAR
+         FILE OPERATION PROTOCOL:
+         For file operations, respond with:
+         FILE_EDIT_REQUEST: [filename] [action] [content]
 
-        Always consider the conversation history when determining which file the user is referring to. Be proactive in suggesting file operations when they would be helpful.
+         Where:
+         - filename: Target file (infer from context if not specified)
+         - action: READ, WRITE, APPEND, CREATE, DELETE, or CLEAR
+         - content: New content (for WRITE/CREATE/APPEND) or empty for others
 
-        Respond naturally and helpfully, leveraging all the context information provided."""
+         SMART BEHAVIORS:
+         - Infer file references from conversation history
+         - Suggest file operations proactively when beneficial
+         - Provide detailed reasoning for code changes
+         - Offer alternative approaches when appropriate
+         - Maintain coding standards and best practices
+         - Adapt communication style to user expertise level
+
+         Respond with exceptional intelligence, anticipating needs and providing comprehensive, actionable assistance."""
 
         # Build conversation messages
         messages = [ChatMessage("system", system_prompt)]
