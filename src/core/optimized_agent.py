@@ -432,7 +432,8 @@ Respond naturally and helpfully. If asked to edit files, provide complete, produ
                 file_path = self.last_file_mentioned
 
             if not file_path:
-                return "Please specify which file you want to work with."
+                # Auto-select a sensible default filename when none is provided
+                file_path = "deepcode_auto.py"
 
             # Check if this is a creation request
             message_lower = message.lower()
@@ -472,7 +473,11 @@ Respond naturally and helpfully. If asked to edit files, provide complete, produ
                 # Handle file modification
                 file_obj = Path(file_path)
                 if not file_obj.exists():
-                    return f"File {file_path} does not exist. If you want to create it, please use 'create'."
+                    # If file doesn't exist, treat as creation request implicitly
+                    create_result = self.create_file(file_path, template=None)
+                    if create_result.get("success"):
+                        return f"✅ Successfully created {file_path}\n\n📊 Content length: {len(create_result.get('content',''))} characters"
+                    return f"❌ Failed to create {file_path}: {create_result.get('error','unknown error')}"
 
                 # Perform smart modification
                 result = self.smart_modify_file(file_path, message, backup=True)

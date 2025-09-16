@@ -33,25 +33,7 @@ from core.optimized_agent import OptimizedDeepCodeAgent
 from core.ollama_client import OllamaClient
 from utils.config import Config
 
-COMMANDS = {
-    "/help": "Show available commands",
-    "/menu": "Show main menu",
-    "/create": "Create new files or projects",
-    "/modify": "Modify existing code",
-    "/explain": "Explain code functionality",
-    "/review": "Review code quality",
-    "/test": "Generate tests",
-    "/status": "Show project status",
-    "/init": "Initialize project",
-    "/typing": "Toggle typing animation on/off",
-    "/optimize": "Toggle optimized agent mode",
-    "/stats": "Show performance statistics",
-    "/cache": "Clear all caches",
-    "/analyze": "Analyze current file",
-    "/exit": "Exit Conflict DeepCode",
-    "/quit": "Exit Conflict DeepCode",
-    "/back": "Return to main menu",
-}
+COMMANDS = {"/exit": "Exit Conflict DeepCode", "/quit": "Exit Conflict DeepCode"}
 
 class TypingAnimation:
     """Handles typing animation for AI responses"""
@@ -234,12 +216,8 @@ class ConflictDeepCodeUI:
         self.console.print("✅ [green]Model downloaded successfully![/green]")
 
     def show_help(self):
-        """Show available commands in a nice panel"""
-        help_md = "\n".join(
-            f"- [bold cyan]{cmd}[/bold cyan]: {desc}" for cmd, desc in COMMANDS.items()
-        )
         panel = Panel(
-            Markdown(f"**Available Commands:**\n\n{help_md}"),
+            Markdown("Type your request. Use /exit to quit."),
             title="[bold magenta]Help[/bold magenta]",
             border_style="magenta",
             box=box.ROUNDED,
@@ -248,16 +226,11 @@ class ConflictDeepCodeUI:
         self.console.print(panel)
 
     def show_main_menu(self):
-        """Display the main menu as a table (for /menu command)"""
-        table = Table(title="[bold cyan]Conflict DeepCode - Main Menu[/bold cyan]", box=box.ROUNDED)
-        table.add_column("Command", style="cyan", no_wrap=True)
-        table.add_column("Description", style="white")
-        for cmd, desc in COMMANDS.items():
-            if cmd in ["/exit", "/quit", "/back"]:  # Only show /exit once
-                continue
-            table.add_row(cmd, desc)
+        table = Table(title="[bold cyan]Conflict DeepCode[/bold cyan]", box=box.ROUNDED)
+        table.add_column("Tip", style="white")
+        table.add_row("Just type what you need. Use /exit to quit.")
         self.console.print(table)
-        self.console.print("[dim]Type a command (e.g. /create) or just chat with the AI.[/dim]")
+        self.console.print("[dim]Natural language only. No slash commands needed.[/dim]")
 
     def start_interactive_session(self):
         """Start the conversational chatbot-like session"""
@@ -304,58 +277,23 @@ class ConflictDeepCodeUI:
                 if not user_input:
                     continue
 
-                # Command handling
+                # Minimal command handling: only exit
                 if user_input.startswith("/"):
-                    cmd, *args = user_input.split()
+                    cmd, *_ = user_input.split()
                     cmd = cmd.lower()
                     if cmd in ("/exit", "/quit"):
                         self.show_goodbye()
                         break
-                    elif cmd == "/help":
-                        self.show_help()
-                    elif cmd == "/menu":
-                        self.show_main_menu()
-                    elif cmd == "/create":
-                        self.create_mode(args)
-                    elif cmd == "/modify":
-                        self.modify_mode(args)
-                    elif cmd == "/explain":
-                        self.explain_mode(args)
-                    elif cmd == "/review":
-                        self.review_mode(args)
-                    elif cmd == "/test":
-                        self.test_mode(args)
-                    elif cmd == "/status":
-                        self.status_mode()
-                    elif cmd == "/init":
-                        self.init_mode()
-                    elif cmd == "/typing":
-                        self.toggle_typing_animation()
-                    elif cmd == "/optimize":
-                        self.toggle_optimized_mode()
-                    elif cmd == "/stats":
-                        self.show_performance_stats()
-                    elif cmd == "/cache":
-                        self.clear_caches()
-                    elif cmd == "/analyze":
-                        self.analyze_current_file(args)
-                    elif cmd == "/cd":
-                        if args:
-                            try:
-                                os.chdir(" ".join(args))
-                                self.console.print(f"📂 Changed directory to {os.getcwd()}")
-                            except Exception as e:
-                                self.console.print(f"[red]Failed to change directory: {e}[/red]")
-                        else:
-                            self.console.print("[yellow]Please provide a path, e.g. /cd path/to/dir[/yellow]")
-                    elif cmd == "/back":
-                        self.console.print("[dim]Already at main chat. Type /exit to quit.[/dim]")
                     else:
-                        self.console.print(f"[red]Unknown command:[/red] {cmd}. Type /help.")
-                    continue
+                        self.console.print("[yellow]Commands disabled. Just type your request (use /exit to quit).[/yellow]")
+                        continue
 
                 # Check if this is a coding/fixing request
                 if self._is_coding_request(user_input):
+                    # Intercept natural-language update requests
+                    if self._is_update_request(user_input):
+                        self._perform_self_update()
+                        continue
                     self._handle_coding_request(user_input)
                     continue
 
@@ -373,7 +311,12 @@ class ConflictDeepCodeUI:
                 try:
                     # Get response based on agent type. Avoid streaming to prevent input/newline glitches on Windows.
                     if self.use_optimized_agent:
-                        response = self.agent.enhanced_chat(user_input, context)
+                        # Natural language update request handling at chat path
+                        if self._is_update_request(user_input):
+                            self._perform_self_update()
+                            response = "Update attempt finished."
+                        else:
+                            response = self.agent.enhanced_chat(user_input, context)
                     else:
                         # Fall back to non-streaming basic chat if available
                         try:
@@ -408,23 +351,7 @@ class ConflictDeepCodeUI:
             except Exception as e:
                 self.console.print(f"❌ [red]Error: {e}[/red]")
 
-    def create_mode(self, args=None):
-        """Create mode interface (conversational)"""
-        self.console.print()
-        if args and len(args) >= 1:
-            target = " ".join(args)
-        else:
-            target = self.console.input("[bold cyan]📝 What would you like to create?[/bold cyan] ").strip()
-        project_type = self.console.input("[bold cyan]Project type (default: python):[/bold cyan] ").strip() or "python"
-
-        from commands.create import create_handler
-        ctx = type('Context', (), {
-            'obj': {
-                'config': self.config,
-                'console': self.console
-            }
-        })()
-        create_handler(ctx, target, project_type, None)
+    # Removed legacy create/modify/explain/review/test/status/init modes to simplify UI
 
     def modify_mode(self, args=None):
         """Modify mode interface (conversational)"""
@@ -499,31 +426,7 @@ class ConflictDeepCodeUI:
         })()
         test_handler(ctx, file_path, framework, False)
 
-    def status_mode(self):
-        """Status mode interface"""
-        self.console.print()
-        table = Table(title="[bold cyan]📊 Project Status[/bold cyan]", box=box.ROUNDED)
-        table.add_column("Component", style="cyan")
-        table.add_column("Status", style="green")
-        table.add_column("Details", style="white")
-
-        if self.ollama and self.ollama.is_available():
-            table.add_row("Ollama", "✅ Connected", self.ollama.get_current_model())
-        else:
-            table.add_row("Ollama", "❌ Disconnected", "Not available")
-
-        if Path('.deepcode').exists():
-            table.add_row("Project", "✅ Initialized", "DeepCode config found")
-        else:
-            table.add_row("Project", "⚠️  Not initialized", "Run '/init'")
-
-        current_dir = Path('.')
-        py_files = len(list(current_dir.glob('**/*.py')))
-        js_files = len(list(current_dir.glob('**/*.js')))
-        total_files = len([f for f in current_dir.rglob('*') if f.is_file()])
-
-        table.add_row("Files", f"📁 {total_files} total", f"{py_files} Python, {js_files} JavaScript")
-        self.console.print(table)
+    # Removed status/init functionality
 
     def init_mode(self):
         """Init mode interface"""
@@ -562,108 +465,15 @@ ignore_patterns:
         self.console.print("✅ [green]DeepCode initialized successfully![/green]")
         self.console.print(f"📁 [cyan]Config: {local_config}[/cyan]")
 
-    def toggle_typing_animation(self):
-        """Toggle typing animation on/off"""
-        self.enable_typing_animation = not self.enable_typing_animation
-        status = "enabled" if self.enable_typing_animation else "disabled"
-        self.console.print(f"⌨️  [cyan]Typing animation {status}[/cyan]")
+    # Typing animation toggle removed from commands
 
-    def toggle_optimized_mode(self):
-        """Toggle between optimized and legacy agent"""
-        self.use_optimized_agent = not self.use_optimized_agent
-        
-        # Reinitialize agent
-        if self.use_optimized_agent:
-            self.agent = OptimizedDeepCodeAgent(self.config)
-            mode = "Optimized"
-            features = "Advanced analysis, smart caching, conflict detection enabled"
-        else:
-            self.agent = DeepCodeAgent(self.config)
-            mode = "Legacy"
-            features = "Basic functionality"
-        
-        self.console.print(f"🔄 [cyan]Switched to {mode} mode[/cyan]")
-        self.console.print(f"[dim]{features}[/dim]")
+    # Optimized/legacy toggle removed from commands
 
-    def show_performance_stats(self):
-        """Show performance statistics for optimized agent"""
-        if not self.use_optimized_agent:
-            self.console.print("[yellow]Performance stats only available in optimized mode[/yellow]")
-            return
-        
-        try:
-            stats = self.agent.get_performance_stats()
-            analyzer_stats = self.agent.code_analyzer.get_cache_stats()
-            
-            table = Table(title="[bold cyan]📊 Performance Statistics[/bold cyan]", box=box.ROUNDED)
-            table.add_column("Metric", style="cyan")
-            table.add_column("Value", style="green")
-            table.add_column("Details", style="white")
-            
-            table.add_row("Response Cache", str(stats['cache_size']), "Cached responses for faster replies")
-            table.add_row("Analyzer Cache", str(stats['analyzer_cache_size']), "Analyzed files in memory")
-            table.add_row("Conversation Length", str(stats['conversation_length']), "Messages in current session")
-            table.add_row("Current File", stats['last_file'] or "None", "Last file worked on")
-            table.add_row("Memory Usage", f"{analyzer_stats['memory_usage']} bytes", "Cache memory footprint")
-            
-            self.console.print(table)
-            
-        except Exception as e:
-            self.console.print(f"[red]Error getting stats: {e}[/red]")
+    # Performance stats removed from commands
 
-    def clear_caches(self):
-        """Clear all caches"""
-        if not self.use_optimized_agent:
-            self.console.print("[yellow]Cache clearing only available in optimized mode[/yellow]")
-            return
-        
-        try:
-            self.agent.clear_all_caches()
-            self.console.print("🧹 [green]All caches cleared successfully![/green]")
-        except Exception as e:
-            self.console.print(f"[red]Error clearing caches: {e}[/red]")
+    # Cache clearing removed from commands
 
-    def analyze_current_file(self, args=None):
-        """Analyze the current file or specified file"""
-        if not self.use_optimized_agent:
-            self.console.print("[yellow]File analysis only available in optimized mode[/yellow]")
-            return
-        
-        # Determine file to analyze
-        if args and len(args) > 0:
-            file_path = args[0]
-        elif self.current_file:
-            file_path = self.current_file
-        else:
-            file_path = self.console.input("[bold cyan]📁 File to analyze:[/bold cyan] ").strip()
-        
-        if not file_path:
-            self.console.print("[red]No file specified[/red]")
-            return
-        
-        try:
-            from pathlib import Path
-            file_obj = Path(file_path)
-            
-            if not file_obj.exists():
-                self.console.print(f"[red]File {file_path} does not exist[/red]")
-                return
-            
-            # Perform analysis
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=self.console,
-                transient=True
-            ) as progress:
-                task = progress.add_task("🔍 Analyzing file...", total=None)
-                analysis = self.agent.code_analyzer.analyze_file(file_obj)
-            
-            # Display analysis results
-            self._display_file_analysis(analysis)
-            
-        except Exception as e:
-            self.console.print(f"[red]Error analyzing file: {e}[/red]")
+    # File analysis removed from commands
 
     def _display_file_analysis(self, analysis):
         """Display comprehensive file analysis results"""
@@ -941,6 +751,20 @@ ignore_patterns:
             padding=(1, 2)
         )
         self.console.print(panel)
+
+    def _is_update_request(self, message: str) -> bool:
+        text = message.lower()
+        return ("update" in text or "upgrade" in text) and ("package" in text or "deepcode" in text)
+
+    def _perform_self_update(self):
+        """Attempt to update the installed package non-interactively."""
+        try:
+            import subprocess, sys
+            self.console.print("🔄 [bold]Updating Conflict DeepCode package...[/bold]")
+            subprocess.run([sys.executable, "-m", "pip", "install", "-U", "conflict-deepcode"], check=False)
+            self.console.print("✅ [green]Update command executed. Restart the app if needed.[/green]")
+        except Exception as e:
+            self.console.print(f"[red]Update failed: {e}[/red]")
 
 def main():
     """Main entry point for the conversational terminal UI"""
