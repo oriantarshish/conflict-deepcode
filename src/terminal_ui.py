@@ -266,7 +266,8 @@ class ConflictDeepCodeUI:
 
         while True:
             try:
-                user_input = self.console.input("[bold green]💬 You:[/bold green] ").strip()
+                user_input = self.console.input("[bold green]💬 You:[/bold green] ")
+                user_input = self._collect_multiline_if_needed(user_input)
                 if not user_input:
                     continue
 
@@ -632,6 +633,59 @@ class ConflictDeepCodeUI:
             padding=(1, 2)
         )
         self.console.print(panel)
+
+    def _collect_multiline_if_needed(self, initial_input: str) -> str:
+        """Collect multiline input when user starts a block.
+        Supports:
+        - Triple backticks fences: ``` ... ```
+        - Backslash line continuation: line ending with '\\'
+        - Custom delimiters: '<<<' to start and '>>>' to end
+        Returns the full collected string (stripped of trailing newlines where appropriate).
+        """
+        text = initial_input.rstrip("\r\n")
+        stripped = text.strip()
+        # Early exit for commands
+        if stripped.startswith('/'):
+            return stripped
+        # Triple backtick fenced block start
+        if stripped.startswith("```") and not stripped.endswith("```"):
+            lines = [text]
+            while True:
+                try:
+                    nxt = self.console.input("")
+                except EOFError:
+                    break
+                lines.append(nxt)
+                if nxt.strip() == "```":
+                    break
+            return "\n".join(lines).strip()
+        # Custom delimiter
+        if stripped == "<<<":
+            lines = []
+            while True:
+                try:
+                    nxt = self.console.input("")
+                except EOFError:
+                    break
+                if nxt.strip() == ">>>":
+                    break
+                lines.append(nxt)
+            return "\n".join(lines).strip()
+        # Backslash continuation
+        if text.endswith("\\"):
+            lines = [text[:-1]]
+            while True:
+                try:
+                    nxt = self.console.input("")
+                except EOFError:
+                    break
+                if nxt.endswith("\\"):
+                    lines.append(nxt[:-1])
+                else:
+                    lines.append(nxt)
+                    break
+            return "\n".join(lines).strip()
+        return stripped
 
     def _is_update_request(self, message: str) -> bool:
         text = message.lower()
